@@ -15,7 +15,6 @@ import yaml
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components import persistent_notification
 from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity
-from homeassistant.helpers.entity import Entity
 
 from .auth_source import load_authentications
 from .providers import PROVIDERS
@@ -47,6 +46,7 @@ ATTR_USER = "username"
 SCAN_INTERVAL = timedelta(minutes=1)
 
 DATA_AUTHENTICATIONS = f"{DOMAIN}_authentications"
+YAML_DATA_KEY = "yaml"
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Optional(CONF_PROVIDER, default=DEFAULT_PROVIDER): vol.In(sorted(PROVIDERS)),
@@ -91,8 +91,8 @@ def parse_auth_time(value):
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the Authenticated sensor from a config entry."""
     config = {**entry.data, **entry.options}
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DATA_AUTHENTICATIONS] = {}
+    entry_data = hass.data.setdefault(DOMAIN, {}).setdefault(entry.entry_id, {})
+    entry_data[DATA_AUTHENTICATIONS] = {}
 
     sensor = AuthenticatedSensor(
         hass,
@@ -101,6 +101,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         config.get(CONF_EXCLUDE, DEFAULT_EXCLUDE),
         config.get(CONF_EXCLUDE_CLIENTS, DEFAULT_EXCLUDE_CLIENTS),
         config.get(CONF_PROVIDER, DEFAULT_PROVIDER),
+        entry.entry_id,
         entry.entry_id,
     )
     await hass.async_add_executor_job(sensor.initial_run)
@@ -116,7 +117,8 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     notify = config.get(CONF_NOTIFY)
     exclude = config.get(CONF_EXCLUDE)
     exclude_clients = config.get(CONF_EXCLUDE_CLIENTS)
-    hass.data[DATA_AUTHENTICATIONS] = {}
+    yaml_data = hass.data.setdefault(DOMAIN, {}).setdefault(YAML_DATA_KEY, {})
+    yaml_data[DATA_AUTHENTICATIONS] = {}
 
     if not load_authentications(hass, exclude, exclude_clients):
         return False
@@ -124,7 +126,14 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     out = str(hass.config.path(OUTFILE))
 
     sensor = AuthenticatedSensor(
-        hass, notify, out, exclude, exclude_clients, config[CONF_PROVIDER]
+        hass,
+        notify,
+        out,
+        exclude,
+        exclude_clients,
+        config[CONF_PROVIDER],
+        YAML_DATA_KEY,
+        YAML_DATA_KEY,
     )
     sensor.initial_run()
 
@@ -139,11 +148,20 @@ class AuthenticatedSensor(SensorEntity):
     _attr_should_poll = True
 
     def __init__(
-        self, hass, notify, out, exclude, exclude_clients, provider, entry_id=None
+        self,
+        hass,
+        notify,
+        out,
+        exclude,
+        exclude_clients,
+        provider,
+        entry_id=None,
+        data_key=YAML_DATA_KEY,
     ):
         """Initialize the sensor."""
         self.hass = hass
         self._attr_unique_id = f"{DOMAIN}_{entry_id or 'yaml'}_last_authentication"
+        self.data_key = data_key
         self._state = None
         self.provider = provider
         self.stored = {}
@@ -152,6 +170,13 @@ class AuthenticatedSensor(SensorEntity):
         self.exclude_clients = exclude_clients
         self.notify = notify
         self.out = out
+
+    @property
+    def authentications(self):
+        """Return this sensor instance's authentication cache."""
+        domain_data = self.hass.data.setdefault(DOMAIN, {})
+        instance_data = domain_data.setdefault(self.data_key, {})
+        return instance_data.setdefault(DATA_AUTHENTICATIONS, {})
 
     def initial_run(self):
         """Run this at startup to initialize the platform data."""
@@ -214,7 +239,7 @@ class AuthenticatedSensor(SensorEntity):
             ipaddress = IPData(accessdata, users, self.provider, False)
             if accessdata.ipaddr not in self.stored:
                 ipaddress.lookup()
-            self.hass.data[DATA_AUTHENTICATIONS][access] = ipaddress
+            self.authentications[access] = ipaddress
         self.write_to_file()
 
     def update(self):
@@ -231,8 +256,8 @@ class AuthenticatedSensor(SensorEntity):
                 ValidateIP(access)
             except ValueError:
                 continue
-            if access in self.hass.data[DATA_AUTHENTICATIONS]:
-                ipaddress = self.hass.data[DATA_AUTHENTICATIONS][access]
+            if access in self.authentications:
+                ipaddress = self.authentications[access]
 
                 new = parse_auth_time(tokens[access].get("last_used_at"))
                 stored = parse_auth_time(ipaddress.last_used_at)
@@ -264,7 +289,7 @@ class AuthenticatedSensor(SensorEntity):
                     ipaddress.notify(self.hass)
                 ipaddress.new_ip = False
 
-            self.hass.data[DATA_AUTHENTICATIONS][access] = ipaddress
+            self.authentications[access] = ipaddress
 
         for ipaddr in sorted(
             tokens,
@@ -272,9 +297,9 @@ class AuthenticatedSensor(SensorEntity):
             or datetime.min,
             reverse=True,
         ):
-            if ipaddr not in self.hass.data[DATA_AUTHENTICATIONS]:
+            if ipaddr not in self.authentications:
                 continue
-            self.last_ip = self.hass.data[DATA_AUTHENTICATIONS][ipaddr]
+            self.last_ip = self.authentications[ipaddr]
             break
         if self.last_ip is not None:
             self._state = self.last_ip.ip_address
@@ -309,8 +334,8 @@ class AuthenticatedSensor(SensorEntity):
         else:
             info = {}
 
-        for known in self.hass.data[DATA_AUTHENTICATIONS]:
-            known = self.hass.data[DATA_AUTHENTICATIONS][known]
+        for known in self.authentications:
+            known = self.authentications[known]
             info[known.ip_address] = {
                 "user_id": known.user_id,
                 "username": known.username,
