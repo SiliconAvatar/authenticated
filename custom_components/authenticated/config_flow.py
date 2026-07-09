@@ -9,12 +9,10 @@ from homeassistant.core import callback
 from .const import (
     CONF_EXCLUDE,
     CONF_EXCLUDE_CLIENTS,
-    CONF_LOG_LOCATION,
     CONF_NOTIFY,
     CONF_PROVIDER,
     DEFAULT_EXCLUDE,
     DEFAULT_EXCLUDE_CLIENTS,
-    DEFAULT_LOG_LOCATION,
     DEFAULT_NOTIFY,
     DEFAULT_PROVIDER,
     DOMAIN,
@@ -43,10 +41,6 @@ def _data_schema(defaults=None):
                     defaults.get(CONF_EXCLUDE_CLIENTS, DEFAULT_EXCLUDE_CLIENTS)
                 ),
             ): str,
-            vol.Optional(
-                CONF_LOG_LOCATION,
-                default=defaults.get(CONF_LOG_LOCATION, DEFAULT_LOG_LOCATION),
-            ): str,
         }
     )
 
@@ -60,7 +54,6 @@ def _normalize_user_input(user_input):
         CONF_EXCLUDE_CLIENTS: _csv_to_list(
             user_input.get(CONF_EXCLUDE_CLIENTS, DEFAULT_EXCLUDE_CLIENTS)
         ),
-        CONF_LOG_LOCATION: user_input.get(CONF_LOG_LOCATION, DEFAULT_LOG_LOCATION),
     }
 
 
@@ -73,7 +66,6 @@ def _config_to_form(config):
         CONF_EXCLUDE_CLIENTS: _list_to_csv(
             config.get(CONF_EXCLUDE_CLIENTS, DEFAULT_EXCLUDE_CLIENTS)
         ),
-        CONF_LOG_LOCATION: config.get(CONF_LOG_LOCATION, DEFAULT_LOG_LOCATION),
     }
 
 
@@ -124,9 +116,6 @@ class AuthenticatedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_EXCLUDE: import_config.get(CONF_EXCLUDE, DEFAULT_EXCLUDE),
                 CONF_EXCLUDE_CLIENTS: import_config.get(
                     CONF_EXCLUDE_CLIENTS, DEFAULT_EXCLUDE_CLIENTS
-                ),
-                CONF_LOG_LOCATION: import_config.get(
-                    CONF_LOG_LOCATION, DEFAULT_LOG_LOCATION
                 ),
             },
         )

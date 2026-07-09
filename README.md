@@ -42,7 +42,6 @@ sensor:
 | **enable_notification** | no | `true` | Turn on/off `persistent notifications` when a new IP is detected, can be `true`/`false`.
 | **exclude** | no | | A list of IP addresses you want to exclude.
 | **provider** | no | 'ipapi' | The provider you want to use for GEO Lookup, 'ipapi', 'extreme', 'ipvigilante'.
-| **log_location** | no | | Full path to the logfile.
 
 **Sample overview:**\
 ![Sample overview](/img/overview.png)

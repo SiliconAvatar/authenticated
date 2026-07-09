@@ -19,12 +19,10 @@ CONF_NOTIFY = "enable_notification"
 CONF_EXCLUDE = "exclude"
 CONF_EXCLUDE_CLIENTS = "exclude_clients"
 CONF_PROVIDER = "provider"
-CONF_LOG_LOCATION = "log_location"
 
 DEFAULT_NOTIFY = True
 DEFAULT_EXCLUDE = []
 DEFAULT_EXCLUDE_CLIENTS = []
 DEFAULT_PROVIDER = "ipapi"
-DEFAULT_LOG_LOCATION = ""
 
 OUTFILE = ".ip_authenticated.yaml"

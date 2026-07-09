@@ -25,10 +25,8 @@ from .const import (
     CONF_EXCLUDE,
     CONF_EXCLUDE_CLIENTS,
     CONF_PROVIDER,
-    CONF_LOG_LOCATION,
     DEFAULT_EXCLUDE,
     DEFAULT_EXCLUDE_CLIENTS,
-    DEFAULT_LOG_LOCATION,
     DEFAULT_NOTIFY,
     DEFAULT_PROVIDER,
     DOMAIN,
@@ -52,7 +50,6 @@ DATA_AUTHENTICATIONS = f"{DOMAIN}_authentications"
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Optional(CONF_PROVIDER, default=DEFAULT_PROVIDER): vol.In(sorted(PROVIDERS)),
-        vol.Optional(CONF_LOG_LOCATION, default=DEFAULT_LOG_LOCATION): cv.string,
         vol.Optional(CONF_NOTIFY, default=DEFAULT_NOTIFY): cv.boolean,
         vol.Optional(CONF_EXCLUDE, default=DEFAULT_EXCLUDE): vol.All(
             cv.ensure_list, [cv.string]
