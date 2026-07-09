@@ -2,7 +2,7 @@
 A platform which allows you to get information
 about successful logins to Home Assistant.
 For more details about this component, please refer to the documentation at
-https://github.com/custom-components/authenticated
+https://github.com/SiliconAvatar/authenticated
 """
 from datetime import datetime, timedelta
 import logging

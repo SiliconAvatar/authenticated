@@ -1,9 +1,0 @@
-default_config:
-logger:
-  default: info
-  logs:
-    custom_components.authenticated: debug
-
-
-sensor:
-  - platform: authenticated
