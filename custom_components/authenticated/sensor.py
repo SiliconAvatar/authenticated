@@ -5,18 +5,18 @@ For more details about this component, please refer to the documentation at
 https://github.com/custom-components/authenticated
 """
 from datetime import datetime, timedelta
-import json
 import logging
 import os
-from ipaddress import ip_address as ValidateIP, ip_network
+from ipaddress import ip_address as ValidateIP
 import socket
 import voluptuous as vol
 import yaml
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.sensor import PLATFORM_SCHEMA
-from homeassistant.helpers.entity import Entity
+from homeassistant.components import persistent_notification
+from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity
 
+from .auth_source import load_authentications
 from .providers import PROVIDERS
 from .const import (
     OUTFILE,
@@ -25,6 +25,12 @@ from .const import (
     CONF_EXCLUDE_CLIENTS,
     CONF_PROVIDER,
     CONF_LOG_LOCATION,
+    DEFAULT_EXCLUDE,
+    DEFAULT_EXCLUDE_CLIENTS,
+    DEFAULT_LOG_LOCATION,
+    DEFAULT_NOTIFY,
+    DEFAULT_PROVIDER,
+    DOMAIN,
     STARTUP,
 )
 
@@ -41,16 +47,16 @@ ATTR_USER = "username"
 
 SCAN_INTERVAL = timedelta(minutes=1)
 
-PLATFORM_NAME = "authenticated"
+DATA_AUTHENTICATIONS = f"{DOMAIN}_authentications"
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Optional(CONF_PROVIDER, default="ipapi"): vol.In(
-            ["ipapi", "extreme", "ipvigilante"]
+        vol.Optional(CONF_PROVIDER, default=DEFAULT_PROVIDER): vol.In(sorted(PROVIDERS)),
+        vol.Optional(CONF_LOG_LOCATION, default=DEFAULT_LOG_LOCATION): cv.string,
+        vol.Optional(CONF_NOTIFY, default=DEFAULT_NOTIFY): cv.boolean,
+        vol.Optional(CONF_EXCLUDE, default=DEFAULT_EXCLUDE): vol.All(
+            cv.ensure_list, [cv.string]
         ),
-        vol.Optional(CONF_LOG_LOCATION, default=""): cv.string,
-        vol.Optional(CONF_NOTIFY, default=True): cv.boolean,
-        vol.Optional(CONF_EXCLUDE, default=[]): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional(CONF_EXCLUDE_CLIENTS, default=[]): vol.All(
+        vol.Optional(CONF_EXCLUDE_CLIENTS, default=DEFAULT_EXCLUDE_CLIENTS): vol.All(
             cv.ensure_list, [cv.string]
         ),
     }
@@ -62,6 +68,26 @@ def humanize_time(timestring):
     return datetime.strptime(timestring[:19], "%Y-%m-%dT%H:%M:%S")
 
 
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up the Authenticated sensor from a config entry."""
+    config = {**entry.data, **entry.options}
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DATA_AUTHENTICATIONS] = {}
+
+    sensor = AuthenticatedSensor(
+        hass,
+        config.get(CONF_NOTIFY, DEFAULT_NOTIFY),
+        str(hass.config.path(OUTFILE)),
+        config.get(CONF_EXCLUDE, DEFAULT_EXCLUDE),
+        config.get(CONF_EXCLUDE_CLIENTS, DEFAULT_EXCLUDE_CLIENTS),
+        config.get(CONF_PROVIDER, DEFAULT_PROVIDER),
+        entry.entry_id,
+    )
+    await hass.async_add_executor_job(sensor.initial_run)
+
+    async_add_entities([sensor], True)
+
+
 def setup_platform(hass, config, add_devices, discovery_info=None):
     # Print startup message
     _LOGGER.info(STARTUP)
@@ -70,11 +96,9 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     notify = config.get(CONF_NOTIFY)
     exclude = config.get(CONF_EXCLUDE)
     exclude_clients = config.get(CONF_EXCLUDE_CLIENTS)
-    hass.data[PLATFORM_NAME] = {}
+    hass.data[DATA_AUTHENTICATIONS] = {}
 
-    if not load_authentications(
-        hass.config.path(".storage/auth"), exclude, exclude_clients
-    ):
+    if not load_authentications(hass, exclude, exclude_clients):
         return False
 
     out = str(hass.config.path(OUTFILE))
@@ -87,12 +111,19 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     add_devices([sensor], True)
 
 
-class AuthenticatedSensor(Entity):
+class AuthenticatedSensor(SensorEntity):
     """Representation of a Sensor."""
 
-    def __init__(self, hass, notify, out, exclude, exclude_clients, provider):
+    _attr_icon = "mdi:lock-alert"
+    _attr_name = "Last successful authentication"
+    _attr_should_poll = True
+
+    def __init__(
+        self, hass, notify, out, exclude, exclude_clients, provider, entry_id=None
+    ):
         """Initialize the sensor."""
         self.hass = hass
+        self._attr_unique_id = f"{DOMAIN}_{entry_id or 'yaml'}_last_authentication"
         self._state = None
         self.provider = provider
         self.stored = {}
@@ -104,9 +135,12 @@ class AuthenticatedSensor(Entity):
 
     def initial_run(self):
         """Run this at startup to initialize the platform data."""
-        users, tokens = load_authentications(
-            self.hass.config.path(".storage/auth"), self.exclude, self.exclude_clients
+        authentications = load_authentications(
+            self.hass, self.exclude, self.exclude_clients
         )
+        if not authentications:
+            return
+        users, tokens = authentications
 
         if os.path.isfile(self.out):
             self.stored = get_outfile_content(self.out)
@@ -160,15 +194,18 @@ class AuthenticatedSensor(Entity):
             ipaddress = IPData(accessdata, users, self.provider, False)
             if accessdata.ipaddr not in self.stored:
                 ipaddress.lookup()
-            self.hass.data[PLATFORM_NAME][access] = ipaddress
+            self.hass.data[DATA_AUTHENTICATIONS][access] = ipaddress
         self.write_to_file()
 
     def update(self):
         """Method to update sensor value"""
         updated = False
-        users, tokens = load_authentications(
-            self.hass.config.path(".storage/auth"), self.exclude, self.exclude_clients
+        authentications = load_authentications(
+            self.hass, self.exclude, self.exclude_clients
         )
+        if not authentications:
+            return
+        users, tokens = authentications
         _LOGGER.debug("Users %s", users)
         _LOGGER.debug("Access %s", tokens)
         for access in tokens:
@@ -177,8 +214,8 @@ class AuthenticatedSensor(Entity):
             except ValueError:
                 continue
 
-            if access in self.hass.data[PLATFORM_NAME]:
-                ipaddress = self.hass.data[PLATFORM_NAME][access]
+            if access in self.hass.data[DATA_AUTHENTICATIONS]:
+                ipaddress = self.hass.data[DATA_AUTHENTICATIONS][access]
 
                 try:
                     new = humanize_time(tokens[access]["last_used_at"])
@@ -210,12 +247,12 @@ class AuthenticatedSensor(Entity):
                     ipaddress.notify(self.hass)
                 ipaddress.new_ip = False
 
-            self.hass.data[PLATFORM_NAME][access] = ipaddress
+            self.hass.data[DATA_AUTHENTICATIONS][access] = ipaddress
 
         for ipaddr in sorted(
             tokens, key=lambda x: tokens[x]["last_used_at"], reverse=True
         ):
-            self.last_ip = self.hass.data[PLATFORM_NAME][ipaddr]
+            self.last_ip = self.hass.data[DATA_AUTHENTICATIONS][ipaddr]
             break
         if self.last_ip is not None:
             self._state = self.last_ip.ip_address
@@ -223,19 +260,9 @@ class AuthenticatedSensor(Entity):
             self.write_to_file()
 
     @property
-    def name(self):
-        """Return the name of the sensor."""
-        return "Last successful authentication"
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
+    def native_value(self):
+        """Return the native value of the sensor."""
         return self._state
-
-    @property
-    def icon(self):
-        """Return the icon of the sensor."""
-        return "mdi:lock-alert"
 
     @property
     def extra_state_attributes(self):
@@ -260,8 +287,8 @@ class AuthenticatedSensor(Entity):
         else:
             info = {}
 
-        for known in self.hass.data[PLATFORM_NAME]:
-            known = self.hass.data[PLATFORM_NAME][known]
+        for known in self.hass.data[DATA_AUTHENTICATIONS]:
+            known = self.hass.data[DATA_AUTHENTICATIONS][known]
             info[known.ip_address] = {
                 "user_id": known.user_id,
                 "username": known.username,
@@ -308,52 +335,6 @@ def get_hostname(ip_address):
         pass
     return hostname
 
-
-def load_authentications(authfile, exclude, exclude_clients):
-    """Load info from auth file."""
-    if not os.path.exists(authfile):
-        _LOGGER.critical("File is missing %s", authfile)
-        return False
-    with open(authfile, "r") as authfile:
-        auth = json.loads(authfile.read())
-
-    users = {}
-    for user in auth["data"]["users"]:
-        users[user["id"]] = user["name"]
-
-    tokens = auth["data"]["refresh_tokens"]
-    tokens_cleaned = {}
-
-    for token in tokens:
-        try:
-            for excludeaddress in exclude:
-                if ValidateIP(token["last_used_ip"]) in ip_network(
-                    excludeaddress, False
-                ):
-                    raise Exception("IP in excluded address configuration")
-            if token["client_id"] in exclude_clients:
-                raise Exception("Client in excluded clients configuration")
-            if token.get("last_used_at") is None:
-                continue
-            if token["last_used_ip"] in tokens_cleaned:
-                if (
-                    token["last_used_at"]
-                    > tokens_cleaned[token["last_used_ip"]]["last_used_at"]
-                ):
-                    tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token[
-                        "last_used_at"
-                    ]
-                    tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
-            else:
-                tokens_cleaned[token["last_used_ip"]] = {}
-                tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token[
-                    "last_used_at"
-                ]
-                tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
-        except Exception:  # Gotta Catch 'Em All
-            pass
-
-    return users, tokens_cleaned
 
 
 class AuthenticatedData:
@@ -406,8 +387,7 @@ class IPData:
             self.city = geo.get("data", {}).get("city")
 
     def notify(self, hass):
-        """Create persistant notification."""
-        notify = hass.components.persistent_notification.create
+        """Create persistent notification."""
         if self.country is not None:
             country = "**Country:**   {}".format(self.country)
         else:
@@ -445,4 +425,9 @@ class IPData:
             city,
             last_used_at.replace("T", " "),
         )
-        notify(message, title="New successful login", notification_id=self.ip_address)
+        persistent_notification.create(
+            hass,
+            message,
+            title="New successful login",
+            notification_id=self.ip_address,
+        )

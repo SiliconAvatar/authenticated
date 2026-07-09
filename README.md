@@ -1,6 +1,8 @@
-At this point this integtration is considered deprecated.
+# authenticated
 
-Parts of it can probably be added to core by someone, if its usefull.
+A Home Assistant custom integration which exposes the latest successful authentication as a sensor.
+
+This fork is being modernized for current Home Assistant releases. It now supports setup from the Home Assistant UI via a config flow while keeping the legacy YAML platform path during the transition.
 
 For general info about securing your instance:
 - https://www.home-assistant.io/docs/authentication/
@@ -18,7 +20,14 @@ A platform which allows you to get information successful logins to Home Assista
 
 To get started you should know what to get from this repo, or use [HACS](https://hacs.xyz/).
 
-**Example configuration.yaml:**
+**Recommended setup:**
+
+1. Install the custom integration.
+2. Restart Home Assistant.
+3. Go to **Settings > Devices & services > Add integration**.
+4. Search for **Authenticated**.
+
+**Legacy YAML setup remains available during the transition:**
 
 ```yaml
 sensor:
@@ -30,7 +39,7 @@ sensor:
 | key | required | default | description
 | --- | --- | --- | ---
 | **platform** | yes | | The sensor platform name.
-| **enable_notification** | no | `true` | Turn on/off `persistant_notifications` when a new IP is detected, can be `true`/`false`.
+| **enable_notification** | no | `true` | Turn on/off `persistent notifications` when a new IP is detected, can be `true`/`false`.
 | **exclude** | no | | A list of IP addresses you want to exclude.
 | **provider** | no | 'ipapi' | The provider you want to use for GEO Lookup, 'ipapi', 'extreme', 'ipvigilante'.
 | **log_location** | no | | Full path to the logfile.

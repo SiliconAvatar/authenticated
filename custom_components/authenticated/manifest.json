@@ -1,7 +1,9 @@
 {
   "domain": "authenticated",
   "name": "Authenticated",
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "config_flow": true,
+  "integration_type": "helper",
   "iot_class": "local_polling",
   "documentation": "https://github.com/custom-components/authenticated",
   "issue_tracker": "https://github.com/custom-components/authenticated/issues",

@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Authenticated",
+        "description": "Track the latest successful Home Assistant authentication.",
+        "data": {
+          "provider": "Geo-IP provider",
+          "enable_notification": "Create persistent notifications for new IPs",
+          "exclude": "Excluded IP addresses or networks (comma-separated)",
+          "exclude_clients": "Excluded client IDs (comma-separated)",
+          "log_location": "Log location"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Authenticated is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Authenticated options",
+        "data": {
+          "provider": "Geo-IP provider",
+          "enable_notification": "Create persistent notifications for new IPs",
+          "exclude": "Excluded IP addresses or networks (comma-separated)",
+          "exclude_clients": "Excluded client IDs (comma-separated)",
+          "log_location": "Log location"
+        }
+      }
+    }
+  }
+}
