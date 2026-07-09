@@ -8,8 +8,7 @@
           "provider": "Geo-IP provider",
           "enable_notification": "Create persistent notifications for new IPs",
           "exclude": "Excluded IP addresses or networks (comma-separated)",
-          "exclude_clients": "Excluded client IDs (comma-separated)",
-          "log_location": "Log location"
+          "exclude_clients": "Excluded client IDs (comma-separated)"
         }
       }
     },
@@ -25,8 +24,7 @@
           "provider": "Geo-IP provider",
           "enable_notification": "Create persistent notifications for new IPs",
           "exclude": "Excluded IP addresses or networks (comma-separated)",
-          "exclude_clients": "Excluded client IDs (comma-separated)",
-          "log_location": "Log location"
+          "exclude_clients": "Excluded client IDs (comma-separated)"
         }
       }
     }
