@@ -5,18 +5,19 @@ For more details about this component, please refer to the documentation at
 https://github.com/custom-components/authenticated
 """
 from datetime import datetime, timedelta
-import json
 import logging
 import os
-from ipaddress import ip_address as ValidateIP, ip_network
+from ipaddress import ip_address as ValidateIP
 import socket
 import voluptuous as vol
 import yaml
 
 import homeassistant.helpers.config_validation as cv
+from homeassistant.components import persistent_notification
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
+from .auth_source import load_authentications
 from .providers import PROVIDERS
 from .const import (
     OUTFILE,
@@ -72,9 +73,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     exclude_clients = config.get(CONF_EXCLUDE_CLIENTS)
     hass.data[PLATFORM_NAME] = {}
 
-    if not load_authentications(
-        hass.config.path(".storage/auth"), exclude, exclude_clients
-    ):
+    if not load_authentications(hass, exclude, exclude_clients):
         return False
 
     out = str(hass.config.path(OUTFILE))
@@ -104,9 +103,12 @@ class AuthenticatedSensor(Entity):
 
     def initial_run(self):
         """Run this at startup to initialize the platform data."""
-        users, tokens = load_authentications(
-            self.hass.config.path(".storage/auth"), self.exclude, self.exclude_clients
+        authentications = load_authentications(
+            self.hass, self.exclude, self.exclude_clients
         )
+        if not authentications:
+            return
+        users, tokens = authentications
 
         if os.path.isfile(self.out):
             self.stored = get_outfile_content(self.out)
@@ -166,9 +168,12 @@ class AuthenticatedSensor(Entity):
     def update(self):
         """Method to update sensor value"""
         updated = False
-        users, tokens = load_authentications(
-            self.hass.config.path(".storage/auth"), self.exclude, self.exclude_clients
+        authentications = load_authentications(
+            self.hass, self.exclude, self.exclude_clients
         )
+        if not authentications:
+            return
+        users, tokens = authentications
         _LOGGER.debug("Users %s", users)
         _LOGGER.debug("Access %s", tokens)
         for access in tokens:
@@ -309,52 +314,6 @@ def get_hostname(ip_address):
     return hostname
 
 
-def load_authentications(authfile, exclude, exclude_clients):
-    """Load info from auth file."""
-    if not os.path.exists(authfile):
-        _LOGGER.critical("File is missing %s", authfile)
-        return False
-    with open(authfile, "r") as authfile:
-        auth = json.loads(authfile.read())
-
-    users = {}
-    for user in auth["data"]["users"]:
-        users[user["id"]] = user["name"]
-
-    tokens = auth["data"]["refresh_tokens"]
-    tokens_cleaned = {}
-
-    for token in tokens:
-        try:
-            for excludeaddress in exclude:
-                if ValidateIP(token["last_used_ip"]) in ip_network(
-                    excludeaddress, False
-                ):
-                    raise Exception("IP in excluded address configuration")
-            if token["client_id"] in exclude_clients:
-                raise Exception("Client in excluded clients configuration")
-            if token.get("last_used_at") is None:
-                continue
-            if token["last_used_ip"] in tokens_cleaned:
-                if (
-                    token["last_used_at"]
-                    > tokens_cleaned[token["last_used_ip"]]["last_used_at"]
-                ):
-                    tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token[
-                        "last_used_at"
-                    ]
-                    tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
-            else:
-                tokens_cleaned[token["last_used_ip"]] = {}
-                tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token[
-                    "last_used_at"
-                ]
-                tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
-        except Exception:  # Gotta Catch 'Em All
-            pass
-
-    return users, tokens_cleaned
-
 
 class AuthenticatedData:
     """Data class for authenticated values."""
@@ -406,8 +365,7 @@ class IPData:
             self.city = geo.get("data", {}).get("city")
 
     def notify(self, hass):
-        """Create persistant notification."""
-        notify = hass.components.persistent_notification.create
+        """Create persistent notification."""
         if self.country is not None:
             country = "**Country:**   {}".format(self.country)
         else:
@@ -445,4 +403,9 @@ class IPData:
             city,
             last_used_at.replace("T", " "),
         )
-        notify(message, title="New successful login", notification_id=self.ip_address)
+        persistent_notification.create(
+            hass,
+            message,
+            title="New successful login",
+            notification_id=self.ip_address,
+        )
