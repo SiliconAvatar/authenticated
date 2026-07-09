@@ -1,7 +1,7 @@
 """Authentication data source helpers for Authenticated."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import os
@@ -54,8 +54,8 @@ def _load_from_auth_manager(hass, exclude, exclude_clients):
             _add_token(tokens, token_data, exclude, exclude_clients)
 
         return users, tokens
-    except Exception as exception:  # pylint: disable=broad-except
-        _LOGGER.debug("Unable to read Home Assistant auth manager data: %s", exception)
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.debug("Unable to read Home Assistant auth manager data.")
         return {}, {}
 
 
@@ -107,6 +107,33 @@ def _format_last_used_at(last_used_at):
     return last_used_at
 
 
+def _parse_last_used_at(value):
+    """Parse Home Assistant auth timestamps for safe comparison."""
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        timestamp = value.strip()
+        if not timestamp:
+            return None
+
+        try:
+            parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            try:
+                parsed = datetime.strptime(timestamp[:19], "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                return None
+    else:
+        return None
+
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
 def _add_token(tokens, token, exclude, exclude_clients):
     """Add a token to the latest-token-per-IP mapping if it should be tracked."""
     last_used_ip = token.get("last_used_ip")
@@ -127,8 +154,17 @@ def _add_token(tokens, token, exclude, exclude_clients):
     if client_id in exclude_clients:
         return
 
-    if last_used_ip in tokens and last_used_at <= tokens[last_used_ip]["last_used_at"]:
+    parsed_last_used_at = _parse_last_used_at(last_used_at)
+    if parsed_last_used_at is None:
         return
+
+    if last_used_ip in tokens:
+        stored_last_used_at = _parse_last_used_at(tokens[last_used_ip]["last_used_at"])
+        if (
+            stored_last_used_at is not None
+            and parsed_last_used_at <= stored_last_used_at
+        ):
+            return
 
     tokens[last_used_ip] = {
         "last_used_at": last_used_at,
@@ -143,5 +179,5 @@ def _is_excluded_ip(ipaddr, exclude):
             if ipaddr in ip_network(excludeaddress, False):
                 return True
         except ValueError:
-            _LOGGER.warning("Ignoring invalid excluded IP network: %s", excludeaddress)
+            _LOGGER.warning("Ignoring invalid excluded IP network.")
     return False
