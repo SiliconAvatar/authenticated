@@ -15,6 +15,7 @@ import yaml
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components import persistent_notification
 from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity
+from homeassistant.helpers.entity import Entity
 
 from .auth_source import load_authentications
 from .providers import PROVIDERS
