@@ -1,7 +1,7 @@
 """Constants for authenticated."""
 
 DOMAIN = "authenticated"
-INTEGRATION_VERSION = "main"
+INTEGRATION_VERSION = "1.0.0"
 ISSUE_URL = "https://github.com/custom-components/authenticated/issues"
 
 STARTUP = f"""
@@ -20,5 +20,11 @@ CONF_EXCLUDE = "exclude"
 CONF_EXCLUDE_CLIENTS = "exclude_clients"
 CONF_PROVIDER = "provider"
 CONF_LOG_LOCATION = "log_location"
+
+DEFAULT_NOTIFY = True
+DEFAULT_EXCLUDE = []
+DEFAULT_EXCLUDE_CLIENTS = []
+DEFAULT_PROVIDER = "ipapi"
+DEFAULT_LOG_LOCATION = ""
 
 OUTFILE = ".ip_authenticated.yaml"

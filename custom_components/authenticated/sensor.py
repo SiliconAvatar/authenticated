@@ -14,7 +14,7 @@ import yaml
 
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components import persistent_notification
-from homeassistant.components.sensor import PLATFORM_SCHEMA
+from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity
 from homeassistant.helpers.entity import Entity
 
 from .auth_source import load_authentications
@@ -26,6 +26,12 @@ from .const import (
     CONF_EXCLUDE_CLIENTS,
     CONF_PROVIDER,
     CONF_LOG_LOCATION,
+    DEFAULT_EXCLUDE,
+    DEFAULT_EXCLUDE_CLIENTS,
+    DEFAULT_LOG_LOCATION,
+    DEFAULT_NOTIFY,
+    DEFAULT_PROVIDER,
+    DOMAIN,
     STARTUP,
 )
 
@@ -42,16 +48,16 @@ ATTR_USER = "username"
 
 SCAN_INTERVAL = timedelta(minutes=1)
 
-PLATFORM_NAME = "authenticated"
+DATA_AUTHENTICATIONS = f"{DOMAIN}_authentications"
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Optional(CONF_PROVIDER, default="ipapi"): vol.In(
-            ["ipapi", "extreme", "ipvigilante"]
+        vol.Optional(CONF_PROVIDER, default=DEFAULT_PROVIDER): vol.In(sorted(PROVIDERS)),
+        vol.Optional(CONF_LOG_LOCATION, default=DEFAULT_LOG_LOCATION): cv.string,
+        vol.Optional(CONF_NOTIFY, default=DEFAULT_NOTIFY): cv.boolean,
+        vol.Optional(CONF_EXCLUDE, default=DEFAULT_EXCLUDE): vol.All(
+            cv.ensure_list, [cv.string]
         ),
-        vol.Optional(CONF_LOG_LOCATION, default=""): cv.string,
-        vol.Optional(CONF_NOTIFY, default=True): cv.boolean,
-        vol.Optional(CONF_EXCLUDE, default=[]): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional(CONF_EXCLUDE_CLIENTS, default=[]): vol.All(
+        vol.Optional(CONF_EXCLUDE_CLIENTS, default=DEFAULT_EXCLUDE_CLIENTS): vol.All(
             cv.ensure_list, [cv.string]
         ),
     }
@@ -63,6 +69,26 @@ def humanize_time(timestring):
     return datetime.strptime(timestring[:19], "%Y-%m-%dT%H:%M:%S")
 
 
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up the Authenticated sensor from a config entry."""
+    config = {**entry.data, **entry.options}
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DATA_AUTHENTICATIONS] = {}
+
+    sensor = AuthenticatedSensor(
+        hass,
+        config.get(CONF_NOTIFY, DEFAULT_NOTIFY),
+        str(hass.config.path(OUTFILE)),
+        config.get(CONF_EXCLUDE, DEFAULT_EXCLUDE),
+        config.get(CONF_EXCLUDE_CLIENTS, DEFAULT_EXCLUDE_CLIENTS),
+        config.get(CONF_PROVIDER, DEFAULT_PROVIDER),
+        entry.entry_id,
+    )
+    await hass.async_add_executor_job(sensor.initial_run)
+
+    async_add_entities([sensor], True)
+
+
 def setup_platform(hass, config, add_devices, discovery_info=None):
     # Print startup message
     _LOGGER.info(STARTUP)
@@ -71,7 +97,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     notify = config.get(CONF_NOTIFY)
     exclude = config.get(CONF_EXCLUDE)
     exclude_clients = config.get(CONF_EXCLUDE_CLIENTS)
-    hass.data[PLATFORM_NAME] = {}
+    hass.data[DATA_AUTHENTICATIONS] = {}
 
     if not load_authentications(hass, exclude, exclude_clients):
         return False
@@ -86,12 +112,19 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     add_devices([sensor], True)
 
 
-class AuthenticatedSensor(Entity):
+class AuthenticatedSensor(SensorEntity):
     """Representation of a Sensor."""
 
-    def __init__(self, hass, notify, out, exclude, exclude_clients, provider):
+    _attr_icon = "mdi:lock-alert"
+    _attr_name = "Last successful authentication"
+    _attr_should_poll = True
+
+    def __init__(
+        self, hass, notify, out, exclude, exclude_clients, provider, entry_id=None
+    ):
         """Initialize the sensor."""
         self.hass = hass
+        self._attr_unique_id = f"{DOMAIN}_{entry_id or 'yaml'}_last_authentication"
         self._state = None
         self.provider = provider
         self.stored = {}
@@ -162,7 +195,7 @@ class AuthenticatedSensor(Entity):
             ipaddress = IPData(accessdata, users, self.provider, False)
             if accessdata.ipaddr not in self.stored:
                 ipaddress.lookup()
-            self.hass.data[PLATFORM_NAME][access] = ipaddress
+            self.hass.data[DATA_AUTHENTICATIONS][access] = ipaddress
         self.write_to_file()
 
     def update(self):
@@ -182,8 +215,8 @@ class AuthenticatedSensor(Entity):
             except ValueError:
                 continue
 
-            if access in self.hass.data[PLATFORM_NAME]:
-                ipaddress = self.hass.data[PLATFORM_NAME][access]
+            if access in self.hass.data[DATA_AUTHENTICATIONS]:
+                ipaddress = self.hass.data[DATA_AUTHENTICATIONS][access]
 
                 try:
                     new = humanize_time(tokens[access]["last_used_at"])
@@ -215,12 +248,12 @@ class AuthenticatedSensor(Entity):
                     ipaddress.notify(self.hass)
                 ipaddress.new_ip = False
 
-            self.hass.data[PLATFORM_NAME][access] = ipaddress
+            self.hass.data[DATA_AUTHENTICATIONS][access] = ipaddress
 
         for ipaddr in sorted(
             tokens, key=lambda x: tokens[x]["last_used_at"], reverse=True
         ):
-            self.last_ip = self.hass.data[PLATFORM_NAME][ipaddr]
+            self.last_ip = self.hass.data[DATA_AUTHENTICATIONS][ipaddr]
             break
         if self.last_ip is not None:
             self._state = self.last_ip.ip_address
@@ -228,19 +261,9 @@ class AuthenticatedSensor(Entity):
             self.write_to_file()
 
     @property
-    def name(self):
-        """Return the name of the sensor."""
-        return "Last successful authentication"
-
-    @property
-    def state(self):
-        """Return the state of the sensor."""
+    def native_value(self):
+        """Return the native value of the sensor."""
         return self._state
-
-    @property
-    def icon(self):
-        """Return the icon of the sensor."""
-        return "mdi:lock-alert"
 
     @property
     def extra_state_attributes(self):
@@ -265,8 +288,8 @@ class AuthenticatedSensor(Entity):
         else:
             info = {}
 
-        for known in self.hass.data[PLATFORM_NAME]:
-            known = self.hass.data[PLATFORM_NAME][known]
+        for known in self.hass.data[DATA_AUTHENTICATIONS]:
+            known = self.hass.data[DATA_AUTHENTICATIONS][known]
             info[known.ip_address] = {
                 "user_id": known.user_id,
                 "username": known.username,
