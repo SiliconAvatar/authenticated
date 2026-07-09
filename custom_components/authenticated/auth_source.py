@@ -18,13 +18,28 @@ def load_authentications(hass, exclude, exclude_clients):
     file reader remains as a compatibility fallback for older Home Assistant builds
     or unusual startup timing where the in-memory auth store is unavailable.
     """
-    users, tokens = _load_from_auth_manager(hass, exclude, exclude_clients)
-    if users or tokens:
-        return users, tokens
+    manager_users, manager_tokens = _load_from_auth_manager(
+        hass, exclude, exclude_clients
+    )
+    if manager_tokens:
+        return manager_users, manager_tokens
 
-    return _load_from_auth_storage(
+    storage_authentications = _load_from_auth_storage(
         hass.config.path(".storage/auth"), exclude, exclude_clients
     )
+    if not storage_authentications:
+        if manager_users:
+            return manager_users, {}
+        return storage_authentications
+
+    storage_users, storage_tokens = storage_authentications
+    if storage_tokens:
+        return storage_users or manager_users, storage_tokens
+
+    if manager_users:
+        return manager_users, {}
+
+    return storage_users, storage_tokens
 
 
 def _load_from_auth_manager(hass, exclude, exclude_clients):
