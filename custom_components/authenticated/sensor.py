@@ -4,7 +4,7 @@ about successful logins to Home Assistant.
 For more details about this component, please refer to the documentation at
 https://github.com/SiliconAvatar/authenticated
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 from ipaddress import ip_address as ValidateIP
@@ -61,9 +61,31 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 
-def humanize_time(timestring):
-    """Convert time."""
-    return datetime.strptime(timestring[:19], "%Y-%m-%dT%H:%M:%S")
+def parse_auth_time(value):
+    """Parse Home Assistant auth timestamps for comparison."""
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        timestamp = value.strip()
+        if not timestamp:
+            return None
+
+        try:
+            parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            try:
+                parsed = datetime.strptime(timestamp[:19], "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                return None
+    else:
+        return None
+
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -204,35 +226,32 @@ class AuthenticatedSensor(SensorEntity):
         if not authentications:
             return
         users, tokens = authentications
-        _LOGGER.debug("Users %s", users)
-        _LOGGER.debug("Access %s", tokens)
         for access in tokens:
             try:
                 ValidateIP(access)
             except ValueError:
                 continue
-
             if access in self.hass.data[DATA_AUTHENTICATIONS]:
                 ipaddress = self.hass.data[DATA_AUTHENTICATIONS][access]
 
-                try:
-                    new = humanize_time(tokens[access]["last_used_at"])
-                    stored = humanize_time(ipaddress.last_used_at)
+                new = parse_auth_time(tokens[access].get("last_used_at"))
+                stored = parse_auth_time(ipaddress.last_used_at)
 
-                    if new == stored:
-                        continue
-                    if new is None or stored is None:
-                        continue
-                    elif new > stored:
-                        updated = True
-                        _LOGGER.info("New successful login from known IP (%s)", access)
-                        ipaddress.prev_used_at = ipaddress.last_used_at
-                        ipaddress.last_used_at = tokens[access]["last_used_at"]
-                except Exception:  # pylint: disable=broad-except
-                    pass
+                if new is None:
+                    _LOGGER.debug(
+                        "Skipping authentication update with invalid timestamp."
+                    )
+                    continue
+                if stored is not None and new <= stored:
+                    continue
+
+                updated = True
+                _LOGGER.info("New successful login from known IP.")
+                ipaddress.prev_used_at = ipaddress.last_used_at
+                ipaddress.last_used_at = tokens[access]["last_used_at"]
             else:
                 updated = True
-                _LOGGER.warning("New successful login from unknown IP (%s)", access)
+                _LOGGER.warning("New successful login from unknown IP.")
                 accessdata = AuthenticatedData(access, tokens[access])
                 ipaddress = IPData(accessdata, users, self.provider)
                 ipaddress.lookup()
@@ -248,8 +267,13 @@ class AuthenticatedSensor(SensorEntity):
             self.hass.data[DATA_AUTHENTICATIONS][access] = ipaddress
 
         for ipaddr in sorted(
-            tokens, key=lambda x: tokens[x]["last_used_at"], reverse=True
+            tokens,
+            key=lambda x: parse_auth_time(tokens[x].get("last_used_at"))
+            or datetime.min,
+            reverse=True,
         ):
+            if ipaddr not in self.hass.data[DATA_AUTHENTICATIONS]:
+                continue
             self.last_ip = self.hass.data[DATA_AUTHENTICATIONS][ipaddr]
             break
         if self.last_ip is not None:
