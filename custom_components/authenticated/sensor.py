@@ -364,6 +364,10 @@ def get_outfile_content(file):
 def get_geo_data(ip_address, provider):
     """Get geo data for an IP"""
     result = {"result": False, "data": "none"}
+    if provider not in PROVIDERS:
+        _LOGGER.warning("Configured Geo-IP provider is no longer supported.")
+        return result
+
     geo_data = PROVIDERS[provider](ip_address)
     geo_data.update_geo_info()
 

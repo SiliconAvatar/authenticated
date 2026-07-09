@@ -1,7 +1,6 @@
 """Providers"""
 import logging
 import requests
-from . import AuthenticatedBaseException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,26 +17,27 @@ class GeoProvider:
     """GeoProvider class."""
 
     url = None
+    request_timeout = 5
 
     def __init__(self, ipaddr):
         """Initialize."""
-        self.result = {}
+        self.result = None
         self.ipaddr = ipaddr
 
     @property
     def country(self):
         """Return country name or None."""
-        return self.result.get("country")
+        return (self.result or {}).get("country")
 
     @property
     def region(self):
         """Return region name or None."""
-        return self.result.get("region")
+        return (self.result or {}).get("region")
 
     @property
     def city(self):
         """Return city name or None."""
-        return self.result.get("city")
+        return (self.result or {}).get("city")
 
     @property
     def computed_result(self):
@@ -48,37 +48,49 @@ class GeoProvider:
 
     def update_geo_info(self):
         """Update Geo Information."""
-        self.result = {}
+        self.result = None
+        if self.url is None:
+            return
+
         try:
             api = self.url.format(self.ipaddr)
             header = {"user-agent": "Home Assistant/Python"}
-            data = requests.get(api, headers=header, timeout=5).json()
-
-            if data.get("error"):
-                if data.get("reason") == "RateLimited":
-                    raise AuthenticatedBaseException(
-                        "RatelimitError, try a different provider."
-                    )
-
-            elif data.get("status", "success") == "error":
+            response = requests.get(api, headers=header, timeout=self.request_timeout)
+            if response.status_code == 429:
+                _LOGGER.warning("Geo-IP provider rate limit reached.")
                 return
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.Timeout:
+            _LOGGER.warning("Geo-IP provider request timed out.")
+            return
+        except requests.exceptions.RequestException:
+            _LOGGER.warning("Geo-IP provider request failed.")
+            return
+        except ValueError:
+            _LOGGER.warning("Geo-IP provider returned invalid JSON.")
+            return
 
-            elif data.get("reserved"):
-                return
+        if not isinstance(data, dict):
+            _LOGGER.warning("Geo-IP provider returned an unexpected response.")
+            return
 
-            elif data.get("status", "success") == "fail":
-                raise AuthenticatedBaseException(
-                    "[{}] - {}".format(
-                        self.ipaddr, data.get("message", "Unknown error.")
-                    )
-                )
+        if data.get("error"):
+            if data.get("reason") == "RateLimited":
+                _LOGGER.warning("Geo-IP provider rate limit reached.")
+            else:
+                _LOGGER.warning("Geo-IP provider returned an error.")
+            return
 
-            self.result = data
-            self.parse_data()
-        except AuthenticatedBaseException as exception:
-            _LOGGER.error(exception)
-        except requests.exceptions.ConnectionError:
-            pass
+        if data.get("status", "success") in ("error", "fail"):
+            _LOGGER.warning("Geo-IP provider returned an error.")
+            return
+
+        if data.get("reserved"):
+            return
+
+        self.result = data
+        self.parse_data()
 
     def parse_data(self):
         """Parse data from geoprovider."""
@@ -86,48 +98,25 @@ class GeoProvider:
 
 
 @register_provider
+class NoGeoLookup(GeoProvider):
+    """Provider that intentionally skips external Geo-IP lookup."""
+
+    name = "none"
+
+    @property
+    def computed_result(self):
+        """Return no result because Geo-IP lookup is disabled."""
+        return None
+
+
+@register_provider
 class IPApi(GeoProvider):
     """IPApi class."""
 
-    url = "https://ipapi.co/{}/json"
+    url = "https://ipapi.co/{}/json/"
     name = "ipapi"
 
     @property
     def country(self):
         """Return country name or None."""
-        return self.result.get("country_name")
-
-
-@register_provider
-class ExtremeIPLookup(GeoProvider):
-    """IPApi class."""
-
-    url = "https://extreme-ip-lookup.com/json/{}"
-    name = "extreme"
-
-
-@register_provider
-class IPVigilante(GeoProvider):
-    """IPVigilante class."""
-
-    url = "https://ipvigilante.com/json/{}"
-    name = "ipvigilante"
-
-    def parse_data(self):
-        """Parse data from geoprovider."""
-        self.result = self.result.get("data", {})
-
-    @property
-    def country(self):
-        """Return country name or None."""
-        return self.result.get("country_name")
-
-    @property
-    def region(self):
-        """Return region name or None."""
-        return self.result.get("subdivision_1_name")
-
-    @property
-    def city(self):
-        """Return city name or None."""
-        return self.result.get("city_name")
+        return (self.result or {}).get("country_name")
