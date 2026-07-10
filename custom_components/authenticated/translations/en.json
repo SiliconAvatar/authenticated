@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Authenticated",
-        "description": "Track the latest successful Home Assistant authentication.\n\nGeo-IP lookup is optional. Choose `none` to avoid sending login IP addresses to an external lookup service, or `ipapi` to add best-effort country, region, and city details.\n\nLeave the ignore fields blank to track all successful logins. Ignored login IPs or networks skips matching IP addresses or CIDR ranges, such as `192.168.1.50` or `10.0.0.0/8`. Ignored auth client IDs skips specific Home Assistant auth clients/apps and is intended for advanced filtering.",
+        "description": "Track the latest successful Home Assistant authentication.\n\nGeo-IP lookup is optional. Choose `No Geo-IP lookup` to avoid sending login IP addresses to an external lookup service. `api.iplocation.net` only returns country-level location data.\n\nLeave the ignore fields blank to track all successful logins. Ignored login IPs or networks skips matching IP addresses or CIDR ranges, such as `192.168.1.50` or `10.0.0.0/8`. Ignored auth client IDs skips specific Home Assistant auth clients/apps and is intended for advanced filtering.",
         "data": {
           "provider": "Geo-IP lookup provider",
           "enable_notification": "Notify for new login IPs",
@@ -20,7 +20,7 @@
     "step": {
       "init": {
         "title": "Authenticated options",
-        "description": "Geo-IP lookup is optional. Choose `none` to avoid sending login IP addresses to an external lookup service, or `ipapi` to add best-effort country, region, and city details.\n\nLeave the ignore fields blank to track all successful logins. Ignored login IPs or networks skips matching IP addresses or CIDR ranges, such as `192.168.1.50` or `10.0.0.0/8`. Ignored auth client IDs skips specific Home Assistant auth clients/apps and is intended for advanced filtering.",
+        "description": "Geo-IP lookup is optional. Choose `No Geo-IP lookup` to avoid sending login IP addresses to an external lookup service. `api.iplocation.net` only returns country-level location data.\n\nLeave the ignore fields blank to track all successful logins. Ignored login IPs or networks skips matching IP addresses or CIDR ranges, such as `192.168.1.50` or `10.0.0.0/8`. Ignored auth client IDs skips specific Home Assistant auth clients/apps and is intended for advanced filtering.",
         "data": {
           "provider": "Geo-IP lookup provider",
           "enable_notification": "Notify for new login IPs",
