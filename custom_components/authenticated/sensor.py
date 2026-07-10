@@ -4,6 +4,7 @@ about successful logins to Home Assistant.
 For more details about this component, please refer to the documentation at
 https://github.com/SiliconAvatar/authenticated
 """
+
 from datetime import datetime, timedelta, timezone
 import logging
 import os
@@ -49,7 +50,9 @@ DATA_AUTHENTICATIONS = f"{DOMAIN}_authentications"
 YAML_DATA_KEY = "yaml"
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Optional(CONF_PROVIDER, default=DEFAULT_PROVIDER): vol.In(sorted(PROVIDERS)),
+        vol.Optional(CONF_PROVIDER, default=DEFAULT_PROVIDER): vol.In(
+            sorted(PROVIDERS)
+        ),
         vol.Optional(CONF_NOTIFY, default=DEFAULT_NOTIFY): cv.boolean,
         vol.Optional(CONF_EXCLUDE, default=DEFAULT_EXCLUDE): vol.All(
             cv.ensure_list, [cv.string]
@@ -385,7 +388,6 @@ def get_hostname(ip_address):
     except Exception:
         pass
     return hostname
-
 
 
 class AuthenticatedData:

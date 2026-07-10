@@ -1,4 +1,5 @@
 """Authentication data source helpers for Authenticated."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
