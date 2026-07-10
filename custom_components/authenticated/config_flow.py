@@ -20,13 +20,21 @@ from .const import (
 from .providers import PROVIDERS
 
 
+def _normalize_provider(value):
+    """Return a supported provider name."""
+    if value in PROVIDERS:
+        return value
+    return DEFAULT_PROVIDER
+
+
 def _data_schema(defaults=None):
     """Return the config/options flow schema."""
     defaults = defaults or {}
     return vol.Schema(
         {
             vol.Optional(
-                CONF_PROVIDER, default=defaults.get(CONF_PROVIDER, DEFAULT_PROVIDER)
+                CONF_PROVIDER,
+                default=_normalize_provider(defaults.get(CONF_PROVIDER)),
             ): vol.In(sorted(PROVIDERS)),
             vol.Optional(
                 CONF_NOTIFY, default=defaults.get(CONF_NOTIFY, DEFAULT_NOTIFY)
@@ -48,7 +56,7 @@ def _data_schema(defaults=None):
 def _normalize_user_input(user_input):
     """Normalize config flow input into integration config data."""
     return {
-        CONF_PROVIDER: user_input.get(CONF_PROVIDER, DEFAULT_PROVIDER),
+        CONF_PROVIDER: _normalize_provider(user_input.get(CONF_PROVIDER)),
         CONF_NOTIFY: user_input.get(CONF_NOTIFY, DEFAULT_NOTIFY),
         CONF_EXCLUDE: _csv_to_list(user_input.get(CONF_EXCLUDE, DEFAULT_EXCLUDE)),
         CONF_EXCLUDE_CLIENTS: _csv_to_list(
@@ -60,7 +68,7 @@ def _normalize_user_input(user_input):
 def _config_to_form(config):
     """Convert stored config to config flow form defaults."""
     return {
-        CONF_PROVIDER: config.get(CONF_PROVIDER, DEFAULT_PROVIDER),
+        CONF_PROVIDER: _normalize_provider(config.get(CONF_PROVIDER)),
         CONF_NOTIFY: config.get(CONF_NOTIFY, DEFAULT_NOTIFY),
         CONF_EXCLUDE: _list_to_csv(config.get(CONF_EXCLUDE, DEFAULT_EXCLUDE)),
         CONF_EXCLUDE_CLIENTS: _list_to_csv(
@@ -111,7 +119,7 @@ class AuthenticatedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_create_entry(
             title="Authenticated",
             data={
-                CONF_PROVIDER: import_config.get(CONF_PROVIDER, DEFAULT_PROVIDER),
+                CONF_PROVIDER: _normalize_provider(import_config.get(CONF_PROVIDER)),
                 CONF_NOTIFY: import_config.get(CONF_NOTIFY, DEFAULT_NOTIFY),
                 CONF_EXCLUDE: import_config.get(CONF_EXCLUDE, DEFAULT_EXCLUDE),
                 CONF_EXCLUDE_CLIENTS: import_config.get(

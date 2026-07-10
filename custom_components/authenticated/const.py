@@ -23,6 +23,6 @@ CONF_PROVIDER = "provider"
 DEFAULT_NOTIFY = True
 DEFAULT_EXCLUDE = []
 DEFAULT_EXCLUDE_CLIENTS = []
-DEFAULT_PROVIDER = "ipapi"
+DEFAULT_PROVIDER = "none"
 
 OUTFILE = ".ip_authenticated.yaml"

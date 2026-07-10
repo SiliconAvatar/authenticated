@@ -4,6 +4,15 @@ A Home Assistant custom integration which exposes the latest successful authenti
 
 This fork is being modernized for current Home Assistant releases. It now supports setup from the Home Assistant UI via a config flow while keeping the legacy YAML platform path during the transition.
 
+## Geo-IP lookup and privacy
+
+Authenticated can optionally look up country, region, and city details for login IP addresses.
+
+- `none` is the default and does not send login IP addresses to an external Geo-IP service.
+- `ipapi` uses `https://ipapi.co/{ip}/json/` and sends each new login IP address to ipapi.co for best-effort location details.
+
+Geo-IP lookup failures are non-fatal. The integration will continue tracking successful authentication activity even when provider data is unavailable.
+
 For general info about securing your instance:
 - https://www.home-assistant.io/docs/authentication/
 - https://www.home-assistant.io/docs/authentication/multi-factor-auth
@@ -41,7 +50,7 @@ sensor:
 | **platform** | yes | | The sensor platform name.
 | **enable_notification** | no | `true` | Turn on/off `persistent notifications` when a new IP is detected, can be `true`/`false`.
 | **exclude** | no | | A list of IP addresses you want to exclude.
-| **provider** | no | 'ipapi' | The provider you want to use for GEO Lookup, 'ipapi', 'extreme', 'ipvigilante'.
+| **provider** | no | `none` | The provider you want to use for Geo-IP lookup, `none` or `ipapi`. Use `none` to avoid sending login IPs to an external lookup service.
 
 **Sample overview:**\
 ![Sample overview](/img/overview.png)
