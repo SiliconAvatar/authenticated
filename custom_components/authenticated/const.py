@@ -23,6 +23,6 @@ CONF_PROVIDER = "provider"
 DEFAULT_NOTIFY = True
 DEFAULT_EXCLUDE = []
 DEFAULT_EXCLUDE_CLIENTS = []
-DEFAULT_PROVIDER = "none"
+DEFAULT_PROVIDER = "ipwhois"
 
 OUTFILE = ".ip_authenticated.yaml"

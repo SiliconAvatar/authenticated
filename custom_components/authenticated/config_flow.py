@@ -5,6 +5,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_EXCLUDE,
@@ -18,6 +19,15 @@ from .const import (
     DOMAIN,
 )
 from .providers import PROVIDERS
+
+PROVIDER_OPTIONS = [
+    selector.SelectOptionDict(value="ipwhois", label="ipwho.is"),
+    selector.SelectOptionDict(value="ipapi", label="ipapi.co"),
+    selector.SelectOptionDict(
+        value="iplocation", label="api.iplocation.net (country only)"
+    ),
+    selector.SelectOptionDict(value="none", label="No Geo-IP lookup"),
+]
 
 
 def _normalize_provider(value):
@@ -35,7 +45,9 @@ def _data_schema(defaults=None):
             vol.Optional(
                 CONF_PROVIDER,
                 default=_normalize_provider(defaults.get(CONF_PROVIDER)),
-            ): vol.In(sorted(PROVIDERS)),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=PROVIDER_OPTIONS)
+            ),
             vol.Optional(
                 CONF_NOTIFY, default=defaults.get(CONF_NOTIFY, DEFAULT_NOTIFY)
             ): bool,

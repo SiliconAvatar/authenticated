@@ -120,3 +120,39 @@ class IPApi(GeoProvider):
     def country(self):
         """Return country name or None."""
         return (self.result or {}).get("country_name")
+
+
+@register_provider
+class IPWhoIs(GeoProvider):
+    """IPWhois.io provider."""
+
+    url = "https://ipwho.is/{}"
+    name = "ipwhois"
+
+    def parse_data(self):
+        """Parse data from geoprovider."""
+        if self.result and self.result.get("success", True) is False:
+            self.result = None
+
+
+@register_provider
+class IPLocation(GeoProvider):
+    """api.iplocation.net provider."""
+
+    url = "https://api.iplocation.net/?ip={}"
+    name = "iplocation"
+
+    @property
+    def country(self):
+        """Return country name or None."""
+        return (self.result or {}).get("country_name")
+
+    @property
+    def region(self):
+        """Return region name or None."""
+        return None
+
+    @property
+    def city(self):
+        """Return city name or None."""
+        return None
