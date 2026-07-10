@@ -1,19 +1,7 @@
-**Sample overview:**
+Authenticated exposes the latest successful Home Assistant authentication as a sensor.
 
-![Sample overview](https://github.com/custom-components/authenticated/blob/master/img/overview.png)
+It can notify when a new login IP is detected, optionally enrich login IPs with Geo-IP details, and supports a privacy-preserving `none` provider that performs no external lookup.
 
-If a new IP is detected, it will be added to a `.ip_authenticated.yaml` file in your configdir, with this information:
+![Sample overview](https://github.com/SiliconAvatar/authenticated/raw/main/img/overview.png)
 
-```yaml
-8.8.8.8:
-  city: Mountain View
-  country: US
-  hostname: google-public-dns-a.google.com
-  last_authenticated: '2018-07-26 09:27:01'
-  previous_authenticated_time: '2018-07-26 09:27:01'
-  region: california
-```
-
-If not disabled, you will also be presented with a `persistent_notification` about the event:
-
-![notification](https://github.com/custom-components/authenticated/raw/master/img/persistant_notification.png)
+![Persistent notification](https://github.com/SiliconAvatar/authenticated/raw/main/img/persistant_notification.png)
