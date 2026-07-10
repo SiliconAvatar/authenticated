@@ -152,7 +152,7 @@ class AuthenticatedOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry):
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Manage options."""
@@ -162,7 +162,7 @@ class AuthenticatedOptionsFlow(config_entries.OptionsFlow):
                 data=_normalize_user_input(user_input),
             )
 
-        current_config = {**self.config_entry.data, **self.config_entry.options}
+        current_config = {**self._config_entry.data, **self._config_entry.options}
         return self.async_show_form(
             step_id="init", data_schema=_data_schema(_config_to_form(current_config))
         )
