@@ -1,13 +1,13 @@
 {
   "domain": "authenticated",
   "name": "Authenticated",
-  "version": "1.0.0",
-  "config_flow": true,
-  "integration_type": "service",
-  "iot_class": "local_polling",
-  "documentation": "https://github.com/SiliconAvatar/authenticated",
-  "issue_tracker": "https://github.com/SiliconAvatar/authenticated/issues",
   "codeowners": [
     "@SiliconAvatar"
-  ]
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/SiliconAvatar/authenticated",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/SiliconAvatar/authenticated/issues",
+  "version": "1.0.0"
 }
